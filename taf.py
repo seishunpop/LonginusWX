@@ -120,4 +120,24 @@ wx_string = wx_string.replace(".", " ")
 wx_string = wx_string[:-1]
 forecast["wx"] = wx_string
 
+sky_string = ""
+bases = df.sky_con[0]["cloud_base_ft_agl"]
+cover = df.sky_con[0]["sky_cover"]
+
+if "OVC" in cover:
+    idx = cover.index("OVC")
+    sky_string+=cover[idx] + bases[idx]
+elif "BKN" in cover:
+    idx = cover.index("BKN")
+    sky_string+=cover[idx] + bases[idx]
+elif "SCT" in cover:
+    idx = cover.index("SCT")
+    sky_string+=cover[idx] + bases[idx]
+elif "FEW" in cover:
+    idx = cover.index("FEW")
+    sky_string+=cover[idx] + bases[idx]
+else:
+    sky_string = "SKC"
+forecast["sky_con"] = sky_string
+
 print(forecast)
