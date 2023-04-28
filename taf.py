@@ -5,7 +5,7 @@ import pandas as pd
 # Constructs query for selected stations
 
 query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
-station = "kgpt"
+station = "knkt"
 
 # Requests TAF to instantiate bs4 then finds all TAF lines
 # TAF data is requested from the Aviation Weather Center API
@@ -68,8 +68,8 @@ for x in taf_lines:
 
 df = pd.DataFrame(taf)
 
-valid_from = "2023-04-27T12:00:00Z"
-valid_to = "2023-04-28T02:00:00Z"
+valid_from = "2023-04-28T03:00:00Z"
+valid_to = "2023-04-29T00:00:00Z"
 df.drop(df[df.fcst_to < valid_from].index, inplace=True)
 df.drop(df[df.fcst_from >= valid_to].index, inplace=True)
 df["wnd_gust"].fillna(0, inplace=True)
@@ -83,7 +83,7 @@ forecast = {
     "wnd_gust": None,
     "visibility": None,
     "wx": None,
-    "wnd_dir": None,
+    "sky_con": None,
 }
 
 if df.wnd_gust.any():
@@ -104,5 +104,20 @@ if vis == "6.21":
 else:
     forecast["visibility"] = vis
 
-print(df.wx)
-print(df.wx.str.split(" +", expand=True))
+wx_df = df.wx.str.split(" +", expand=True)
+present_wx = []
+for x in range(wx_df.shape[1]):
+    wx_series = wx_df[x].squeeze().tolist()
+    for z in wx_series:
+        present_wx.append(z)
+wx_scalar = pd.Series(present_wx)
+wx_scalar.fillna("NSW", inplace=True)
+wx_array = wx_scalar.unique()
+wx_string = ""
+for x in wx_array:
+    wx_string+=(x + ".")
+wx_string = wx_string.replace(".", " ")
+wx_string = wx_string[:-1]
+forecast["wx"] = wx_string
+
+print(forecast)
