@@ -5,7 +5,7 @@ import pandas as pd
 # Constructs query for selected stations
 
 query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
-station = "kdys"
+station = "kgpt"
 
 # Requests TAF to instantiate bs4 then finds all TAF lines
 # TAF data is requested from the Aviation Weather Center API
@@ -31,8 +31,12 @@ taf = {
 for x in taf_lines:
     fcst_time_from = x.fcst_time_from.string
     fcst_time_to = x.fcst_time_to.string
-    wind_dir_degrees = x.wind_dir_degrees.string
-    wind_speed_kt = x.wind_speed_kt.string
+    wind_dir_degrees = None
+    if x.wind_dir_degrees:
+        wind_dir_degrees = x.wind_dir_degrees.string
+    wind_speed_kt = None
+    if x.wind_speed_kt:
+        wind_speed_kt = x.wind_speed_kt.string
     wind_gust_kt = None
     if x.wind_gust_kt:
         wind_gust_kt = x.wind_gust_kt.string
@@ -60,13 +64,16 @@ for x in taf_lines:
     taf["sky_con"].append(sky_condition)
 
 # Converts TAF to dataframe then drops lines outside of valid times
+# Also fills None values as needed to pick worst conditions
 
 df = pd.DataFrame(taf)
 
-valid_from = "2023-04-26T16:00:00Z"
-valid_to = "2023-04-26T20:00:00Z"
+valid_from = "2023-04-27T12:00:00Z"
+valid_to = "2023-04-28T02:00:00Z"
 df.drop(df[df.fcst_to < valid_from].index, inplace=True)
 df.drop(df[df.fcst_from >= valid_to].index, inplace=True)
+df["wnd_gust"].fillna(0, inplace=True)
+df["wnd_speed"].fillna(0, inplace=True)
 
 # Picks worst conditions for each element
 
@@ -80,14 +87,14 @@ forecast = {
 }
 
 if df.wnd_gust.any():
-    gust = df["wnd_gust"].max()
-    winds = df.loc[df["wnd_gust"] == gust].iloc[0]
+    idx = df["wnd_gust"].astype("int8").idxmax()
+    winds = df.iloc[idx]
     forecast["wnd_dir"] = winds.wnd_dir
     forecast["wnd_speed"] = winds.wnd_speed
     forecast["wnd_gust"] = winds.wnd_gust
 else:
-    speed = df["wnd_speed"].max()
-    winds = df.loc[df["wnd_speed"] == speed].iloc[0]
+    idx = df["wnd_speed"].astype("int8").idxmin()
+    winds = df.iloc[idx]
     forecast["wnd_dir"] = winds.wnd_dir
     forecast["wnd_speed"] = winds.wnd_speed
 
@@ -97,4 +104,5 @@ if vis == "6.21":
 else:
     forecast["visibility"] = vis
 
-print(forecast)
+print(df.wx)
+print(df.wx.str.split(" +", expand=True))
