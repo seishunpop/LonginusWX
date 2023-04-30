@@ -78,15 +78,21 @@ def scrape_taf(icao):
 
 
 # Picks worst conditions for each element
-def process_taf(tafs):
+def process_taf(taf):
+    # Creates a dataframe from the taf dict
     df = pd.DataFrame(taf)
 
+    # Drops TAF lines outside of the valid times
     df.drop(df[df.fcst_to < valid_from].index, inplace=True)
     df.drop(df[df.fcst_from >= valid_to].index, inplace=True)
+
+    # Fills all None values with 0 in the respective columns
     df["wnd_gust"].fillna(0, inplace=True)
     df["wnd_speed"].fillna(0, inplace=True)
 
+    # Initializes the dict that forecast elements will be appended to
     forecast = {
+        "icao": taf["icao"],
         "wnd_dir": None,
         "wnd_speed": None,
         "wnd_gust": None,
@@ -95,6 +101,8 @@ def process_taf(tafs):
         "sky_con": None,
     }
 
+    # Determines the worst wind conditions by highest wind speed
+    # One caveat is that this assumes the highest wind speed will be a gust
     if df.wnd_gust.any():
         idx = df["wnd_gust"].astype("int8").idxmax()
         winds = df.iloc[idx]
@@ -107,12 +115,16 @@ def process_taf(tafs):
         forecast["wnd_dir"] = winds.wnd_dir
         forecast["wnd_speed"] = winds.wnd_speed
 
+    # Calculates the lowest visiblity in statute miles
+    # Still working on implementing internal AWC mappings(Ex. P6SM/7SM = 6.21)
     vis = df["visibility"].astype("float16").min()
     if vis == "6.21":
         forecast["visibility"] = "7"
     else:
         forecast["visibility"] = vis
 
+    # Combines present weather from all lines into one string
+    # Still working on refining the output string
     wx_df = df.wx.str.split(" +", expand=True)
     present_wx = []
     for x in range(wx_df.shape[1]):
@@ -129,10 +141,14 @@ def process_taf(tafs):
     wx_string = wx_string[:-1]
     forecast["wx"] = wx_string
 
+    # Determines worst sky condition by highest occlusion
+    # Caveat #1 is that any sky conditions below the OVC layer get excluded
+    # Caveat #2 is that whatever sky cover gets matched first gets returned
+    # This means that the same occlusion with lower bases might get excluded
+    # Still working on fixing the reduction logic
     sky_string = ""
     bases = df.sky_con[0]["cloud_base_ft_agl"]
     cover = df.sky_con[0]["sky_cover"]
-
     if "OVC" in cover:
         idx = cover.index("OVC")
         sky_string += cover[idx] + bases[idx]
@@ -165,7 +181,21 @@ soup = BeautifulSoup(r, "xml")
 tafs = []
 for x in stations:
     tafs.append(scrape_taf(x))
-# forecast = process_taf(taf)
 
-# print(tafs)
-print(tafs)
+forecasts = []
+for x in tafs:
+    if x["fcst_from"] == []:
+        forecast = {
+            "icao": x["icao"],
+            "wnd_dir": None,
+            "wnd_speed": None,
+            "wnd_gust": None,
+            "visibility": None,
+            "wx": None,
+            "sky_con": None,
+        }
+        forecasts.append(forecast)
+    else:
+        forecasts.append(process_taf(x))
+
+print(forecasts)
