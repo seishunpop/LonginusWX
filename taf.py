@@ -78,6 +78,16 @@ def scrape_taf(icao):
         return taf
 
 
+# Encodes cloud bases into TAF format
+def encode_bases(base):
+    if base >= 10000:
+        return str(base)[:2] + "0"
+    elif base >= 1000:
+        return "0" + str(base)[:2]
+    else:
+        return "0" + "0" + str(base)[0]
+
+
 # Picks worst conditions for each element
 def process_taf(taf):
     # Creates a dataframe from the taf dict
@@ -146,6 +156,9 @@ def process_taf(taf):
     # Caveat is that of occlusions present multiple times, only lowest one gets used
     # EX: BKN007 BKN020 OVC040. BKN020 gets excluded while rest make it through
     # Reduction logic also does not yet handle vertical visibility
+    sky_string = "SKC"
+
+    # Pulls sky condition into a new dataframe
     sky = {"cloud_bases": [], "cloud_cover": [], "occlusion": []}
     for z in df["sky_con"]:
         for v in z["cloud_base_ft_agl"]:
@@ -162,54 +175,44 @@ def process_taf(taf):
                 sky["occlusion"].append(2)
             else:
                 sky["occlusion"].append(0)
-
     sky_df = pd.DataFrame(sky)
+
+    # Checks if sky condition is SKC by pulling highest occlusion
     max_cover = sky_df["occlusion"].astype("int8").max()
-    max_cover_idx = sky_df["occlusion"].astype("int8").idxmax()
-    max_cover_string = sky_df["cloud_cover"].iloc[max_cover_idx]
-    max_cover_rows = sky_df.loc[sky_df["occlusion"] == max_cover]
-    min_base = max_cover_rows["cloud_bases"].astype("int32").min()
+    if max_cover != 0:
+        max_cover_idx = sky_df["occlusion"].astype("int8").idxmax()
+        max_cover_string = sky_df["cloud_cover"].iloc[max_cover_idx]
+        max_cover_rows = sky_df.loc[sky_df["occlusion"] == max_cover]
+        min_base = max_cover_rows["cloud_bases"].astype("int32").min()
 
-    reduced_sky = {"cover": [max_cover_string], "bases": [min_base]}
-    sky_reduced_df = pd.DataFrame(reduced_sky)
+        # Evaluates cloud covers below the highest and merges them
+        reduced_sky = {"cover": [max_cover_string], "bases": [min_base]}
+        sky_reduced_df = pd.DataFrame(reduced_sky)
+        lesser_cover_rows = sky_df.loc[sky_df["occlusion"] < max_cover]
+        lesser_covers = pd.unique(lesser_cover_rows["occlusion"])
+        lesser_covers = np.sort(lesser_covers)
+        lesser_covers = lesser_covers[::-1]
+        for x in lesser_covers:
+            if x != 0:
+                lesser_rows = sky_df.loc[sky_df["occlusion"] == x]
+                lesser_rows.reset_index(drop=True, inplace=True)
+                lesser_base = lesser_rows["cloud_bases"].astype("int32").min()
+                if lesser_base < sky_reduced_df["bases"].astype("int32").min():
+                    cover_idx = lesser_rows["occlusion"].astype("int8").idxmax()
+                    cover_string = lesser_rows["cloud_cover"].iloc[cover_idx]
+                    lesser_sky = {"cover": [cover_string], "bases": [lesser_base]}
+                    lesser_sky_df = pd.DataFrame(lesser_sky)
+                    sky_reduced_df = pd.concat([sky_reduced_df, lesser_sky_df])
 
-    lesser_cover_rows = sky_df.loc[sky_df["occlusion"] < max_cover]
-    lesser_covers = pd.unique(lesser_cover_rows["occlusion"])
-    lesser_covers = np.sort(lesser_covers)
-    lesser_covers = lesser_covers[::-1]
+        # Formats the merged cloud cover with bases before appending to the forecast
+        sky_string = ""
+        sky_reduced_df = sky_reduced_df.iloc[::-1]
+        for _, row in sky_reduced_df.iterrows():
+            sky_string += row["cover"] + encode_bases(row["bases"]) + "."
+        sky_string = sky_string[:-1]
+        sky_string = sky_string.replace(".", " ")
 
-    for x in lesser_covers:
-        lesser_rows = sky_df.loc[sky_df["occlusion"] == x]
-        lesser_base = lesser_rows["cloud_bases"].astype("int32").min()
-        if lesser_base < sky_reduced_df["bases"].astype("int32").min():
-            cover_idx = lesser_rows["occlusion"].astype("int8").idxmax()
-            cover_string = lesser_rows["cloud_cover"].iloc[cover_idx]
-            lesser_sky = {"cover": [cover_string], "bases": [lesser_base]}
-            lesser_sky_df = pd.DataFrame(lesser_sky)
-            sky_reduced_df = pd.concat([sky_reduced_df, lesser_sky_df])
-
-    sky_reduced_df.assign()
-
-    print(sky_reduced_df)
-
-    # sky_string = ""
-    # bases = df.sky_con[0]["cloud_base_ft_agl"]
-    # cover = df.sky_con[0]["sky_cover"]
-    # if "OVC" in cover:
-    #     idx = cover.index("OVC")
-    #     sky_string += cover[idx] + bases[idx]
-    # elif "BKN" in cover:
-    #     idx = cover.index("BKN")
-    #     sky_string += cover[idx] + bases[idx]
-    # elif "SCT" in cover:
-    #     idx = cover.index("SCT")
-    #     sky_string += cover[idx] + bases[idx]
-    # elif "FEW" in cover:
-    #     idx = cover.index("FEW")
-    #     sky_string += cover[idx] + bases[idx]
-    # else:
-    #     sky_string = "SKC"
-    # forecast["sky_con"] = sky_string
+    forecast["sky_con"] = sky_string
 
     return forecast
 
@@ -223,9 +226,9 @@ pd.set_option("display.max_colwidth", None)
 # TAF data is requested from the Aviation Weather Center API
 # API documentation can be found at https://www.aviationweather.gov/dataserver/example?datatype=taf
 query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
-stations = ["KSMF"]
-valid_from = "2023-05-06T06:00:00Z"
-valid_to = "2023-05-07T16:00:00Z"
+stations = ["KMSL"]
+valid_from = "2023-05-09T06:00:00Z"
+valid_to = "2023-05-10T00:00:00Z"
 
 r = requests.get(query_string + ",".join(stations)).text
 soup = BeautifulSoup(r, "xml")
@@ -250,4 +253,4 @@ for x in tafs:
     else:
         forecasts.append(process_taf(x))
 
-# print()
+print(forecasts)
