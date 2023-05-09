@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+import numpy as np
 import pandas as pd
 
 
@@ -142,38 +143,89 @@ def process_taf(taf):
     forecast["wx"] = wx_string
 
     # Determines worst sky condition by highest occlusion
-    # Caveat #1 is that any sky conditions below the OVC layer get excluded
-    # Caveat #2 is that whatever sky cover gets matched first gets returned
-    # This means that the same occlusion with lower bases might get excluded
-    # Still working on fixing the reduction logic
-    sky_string = ""
-    bases = df.sky_con[0]["cloud_base_ft_agl"]
-    cover = df.sky_con[0]["sky_cover"]
-    if "OVC" in cover:
-        idx = cover.index("OVC")
-        sky_string += cover[idx] + bases[idx]
-    elif "BKN" in cover:
-        idx = cover.index("BKN")
-        sky_string += cover[idx] + bases[idx]
-    elif "SCT" in cover:
-        idx = cover.index("SCT")
-        sky_string += cover[idx] + bases[idx]
-    elif "FEW" in cover:
-        idx = cover.index("FEW")
-        sky_string += cover[idx] + bases[idx]
-    else:
-        sky_string = "SKC"
-    forecast["sky_con"] = sky_string
+    # Caveat is that of occlusions present multiple times, only lowest one gets used
+    # EX: BKN007 BKN020 OVC040. BKN020 gets excluded while rest make it through
+    # Reduction logic also does not yet handle vertical visibility
+    sky = {"cloud_bases": [], "cloud_cover": [], "occlusion": []}
+    for z in df["sky_con"]:
+        for v in z["cloud_base_ft_agl"]:
+            sky["cloud_bases"].append(v)
+        for v in z["sky_cover"]:
+            sky["cloud_cover"].append(v)
+            if v == "OVC":
+                sky["occlusion"].append(8)
+            elif v == "BKN":
+                sky["occlusion"].append(7)
+            elif v == "SCT":
+                sky["occlusion"].append(4)
+            elif v == "FEW":
+                sky["occlusion"].append(2)
+            else:
+                sky["occlusion"].append(0)
+
+    sky_df = pd.DataFrame(sky)
+    max_cover = sky_df["occlusion"].astype("int8").max()
+    max_cover_idx = sky_df["occlusion"].astype("int8").idxmax()
+    max_cover_string = sky_df["cloud_cover"].iloc[max_cover_idx]
+    max_cover_rows = sky_df.loc[sky_df["occlusion"] == max_cover]
+    min_base = max_cover_rows["cloud_bases"].astype("int32").min()
+
+    reduced_sky = {"cover": [max_cover_string], "bases": [min_base]}
+    sky_reduced_df = pd.DataFrame(reduced_sky)
+
+    lesser_cover_rows = sky_df.loc[sky_df["occlusion"] < max_cover]
+    lesser_covers = pd.unique(lesser_cover_rows["occlusion"])
+    lesser_covers = np.sort(lesser_covers)
+    lesser_covers = lesser_covers[::-1]
+
+    for x in lesser_covers:
+        lesser_rows = sky_df.loc[sky_df["occlusion"] == x]
+        lesser_base = lesser_rows["cloud_bases"].astype("int32").min()
+        if lesser_base < sky_reduced_df["bases"].astype("int32").min():
+            cover_idx = lesser_rows["occlusion"].astype("int8").idxmax()
+            cover_string = lesser_rows["cloud_cover"].iloc[cover_idx]
+            lesser_sky = {"cover": [cover_string], "bases": [lesser_base]}
+            lesser_sky_df = pd.DataFrame(lesser_sky)
+            sky_reduced_df = pd.concat([sky_reduced_df, lesser_sky_df])
+
+    sky_reduced_df.assign()
+
+    print(sky_reduced_df)
+
+    # sky_string = ""
+    # bases = df.sky_con[0]["cloud_base_ft_agl"]
+    # cover = df.sky_con[0]["sky_cover"]
+    # if "OVC" in cover:
+    #     idx = cover.index("OVC")
+    #     sky_string += cover[idx] + bases[idx]
+    # elif "BKN" in cover:
+    #     idx = cover.index("BKN")
+    #     sky_string += cover[idx] + bases[idx]
+    # elif "SCT" in cover:
+    #     idx = cover.index("SCT")
+    #     sky_string += cover[idx] + bases[idx]
+    # elif "FEW" in cover:
+    #     idx = cover.index("FEW")
+    #     sky_string += cover[idx] + bases[idx]
+    # else:
+    #     sky_string = "SKC"
+    # forecast["sky_con"] = sky_string
 
     return forecast
 
 
+# Development settings for Pandas
+pd.set_option("display.max_rows", 500)
+pd.set_option("display.max_columns", 500)
+pd.set_option("display.width", 1000)
+pd.set_option("display.max_colwidth", None)
+
 # TAF data is requested from the Aviation Weather Center API
 # API documentation can be found at https://www.aviationweather.gov/dataserver/example?datatype=taf
 query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
-stations = ["KBAB", "KMHR"]
-valid_from = "2023-04-30T09:00:00Z"
-valid_to = "2023-05-01T09:00:00Z"
+stations = ["KSMF"]
+valid_from = "2023-05-06T06:00:00Z"
+valid_to = "2023-05-07T16:00:00Z"
 
 r = requests.get(query_string + ",".join(stations)).text
 soup = BeautifulSoup(r, "xml")
@@ -198,4 +250,4 @@ for x in tafs:
     else:
         forecasts.append(process_taf(x))
 
-print(forecasts)
+# print()
