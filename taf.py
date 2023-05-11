@@ -133,50 +133,52 @@ def process_taf(taf):
     vis = df.iloc[vis_idx]["visibility"]
     if vis == "6.21":
         forecast["visibility"] = "7"
-    if vis == "5.59":
+    elif vis == "5.59":
         forecast["visibility"] = "6"
-    if vis == "4.97":
+    elif vis == "4.97":
         forecast["visibility"] = "5"
-    if vis == "3.73":
+    elif vis == "3.73":
         forecast["visibility"] = "4"
-    if vis == "3.0":
+    elif vis == "3.0":
         forecast["visibility"] = "3"
-    if vis == "2.49":
+    elif vis == "2.49":
         forecast["visibility"] = "2 1/2"
-    if vis == "1.86":
+    elif vis == "1.86":
         forecast["visibility"] = "1 7/8"
-    if vis == "1.74":
+    elif vis == "1.74":
         forecast["visibility"] = "1 3/4"
-    if vis == "1.55":
+    elif vis == "1.55":
         forecast["visibility"] = "1 1/2"
-    if vis == "1.24":
+    elif vis == "1.24":
         forecast["visibility"] = "1 1/4"
-    if vis == "0.75":
+    elif vis == "0.75":
         forecast["visibility"] = "3/4"
-    if vis == "0.62":
+    elif vis == "0.62":
         forecast["visibility"] = "5/8"
-    if vis == "0.50":
+    elif vis == "0.50":
         forecast["visibility"] = "1/2"
-    if vis == "0.37":
+    elif vis == "0.37":
         forecast["visibility"] = "3/8"
-    if vis == "0.31":
+    elif vis == "0.31":
         forecast["visibility"] = "5/16"
-    if vis == "0.25":
+    elif vis == "0.25":
         forecast["visibility"] = "1/4"
-    if vis == "0.19":
+    elif vis == "0.19":
         forecast["visibility"] = "3/16"
     else:
         forecast["visibility"] = vis
 
     # Combines present weather from all lines into one string
     # Still working on refining the output string
-
     wx_df = df.wx.str.split(" +", expand=True)
     present_wx = []
     for x in range(wx_df.shape[1]):
-        wx_series = wx_df[x].squeeze().tolist()
-        for z in wx_series:
-            present_wx.append(z)
+        try:
+            wx_series = wx_df[x].squeeze().tolist()
+            for z in wx_series:
+                present_wx.append(z)
+        except:
+            present_wx.append("NSW")
     wx_scalar = pd.Series(present_wx)
     wx_scalar.fillna("NSW", inplace=True)
     wx_array = wx_scalar.unique()
