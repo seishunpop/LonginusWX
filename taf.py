@@ -121,21 +121,56 @@ def process_taf(taf):
         forecast["wnd_speed"] = winds.wnd_speed
         forecast["wnd_gust"] = winds.wnd_gust
     else:
-        idx = df["wnd_speed"].astype("int8").idxmin()
+        idx = df["wnd_speed"].astype("int8").idxmax()
         winds = df.iloc[idx]
         forecast["wnd_dir"] = winds.wnd_dir
         forecast["wnd_speed"] = winds.wnd_speed
 
     # Calculates the lowest visiblity in statute miles
-    # Still working on implementing internal AWC mappings(Ex. P6SM/7SM = 6.21)
-    vis = df["visibility"].astype("float16").min()
+    # Still working on implementing internal AWC mappings
+    # 4400, 3600, 3200, 2600, 2400, 2200, 1800, 1600, 1400, 200, 100, 0
+    vis_idx = df["visibility"].astype("float16").idxmin()
+    vis = df.iloc[vis_idx]["visibility"]
     if vis == "6.21":
         forecast["visibility"] = "7"
+    if vis == "5.59":
+        forecast["visibility"] = "6"
+    if vis == "4.97":
+        forecast["visibility"] = "5"
+    if vis == "3.73":
+        forecast["visibility"] = "4"
+    if vis == "3.0":
+        forecast["visibility"] = "3"
+    if vis == "2.49":
+        forecast["visibility"] = "2 1/2"
+    if vis == "1.86":
+        forecast["visibility"] = "1 7/8"
+    if vis == "1.74":
+        forecast["visibility"] = "1 3/4"
+    if vis == "1.55":
+        forecast["visibility"] = "1 1/2"
+    if vis == "1.24":
+        forecast["visibility"] = "1 1/4"
+    if vis == "0.75":
+        forecast["visibility"] = "3/4"
+    if vis == "0.62":
+        forecast["visibility"] = "5/8"
+    if vis == "0.50":
+        forecast["visibility"] = "1/2"
+    if vis == "0.37":
+        forecast["visibility"] = "3/8"
+    if vis == "0.31":
+        forecast["visibility"] = "5/16"
+    if vis == "0.25":
+        forecast["visibility"] = "1/4"
+    if vis == "0.19":
+        forecast["visibility"] = "3/16"
     else:
         forecast["visibility"] = vis
 
     # Combines present weather from all lines into one string
     # Still working on refining the output string
+
     wx_df = df.wx.str.split(" +", expand=True)
     present_wx = []
     for x in range(wx_df.shape[1]):
@@ -226,9 +261,9 @@ pd.set_option("display.max_colwidth", None)
 # TAF data is requested from the Aviation Weather Center API
 # API documentation can be found at https://www.aviationweather.gov/dataserver/example?datatype=taf
 query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
-stations = ["KMSL"]
-valid_from = "2023-05-09T06:00:00Z"
-valid_to = "2023-05-10T00:00:00Z"
+stations = ["KBAB"]
+valid_from = "2023-05-11T06:00:00Z"
+valid_to = "2023-05-12T00:00:00Z"
 
 r = requests.get(query_string + ",".join(stations)).text
 soup = BeautifulSoup(r, "xml")
