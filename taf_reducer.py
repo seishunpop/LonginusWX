@@ -5,7 +5,10 @@ import pandas as pd
 
 
 # Scrapes data from each TAF line
-def scrape_taf(icao):
+def scrape_taf(icao, r):
+    r = r
+    soup = BeautifulSoup(r, "xml")
+
     try:
         # Selects TAF element by icao
         taf_lines = soup.find("station_id", string=icao).parent.find_all("forecast")
@@ -89,7 +92,7 @@ def encode_bases(base):
 
 
 # Picks worst conditions for each element
-def process_taf(taf):
+def process_taf(taf, valid_from, valid_to):
     # Creates a dataframe from the taf dict
     df = pd.DataFrame(taf)
 
@@ -260,34 +263,36 @@ pd.set_option("display.max_columns", 500)
 pd.set_option("display.width", 1000)
 pd.set_option("display.max_colwidth", None)
 
+
 # TAF data is requested from the Aviation Weather Center API
 # API documentation can be found at https://www.aviationweather.gov/dataserver/example?datatype=taf
-query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
-stations = ["KBAB"]
-valid_from = "2023-05-11T06:00:00Z"
-valid_to = "2023-05-12T00:00:00Z"
+def taf_reducer(stations, valid_from, valid_to):
+    query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
+    # Example argument format
+    # stations = ["KNKT", "KSMF"]
+    # valid_from = "2023-05-14T10:00:00"
+    # valid_to = "2023-05-15T009:00:00"
 
-r = requests.get(query_string + ",".join(stations)).text
-soup = BeautifulSoup(r, "xml")
+    r = requests.get(query_string + ",".join(stations)).text
 
-tafs = []
-for x in stations:
-    tafs.append(scrape_taf(x))
+    tafs = []
+    for x in stations:
+        tafs.append(scrape_taf(x, r))
 
-forecasts = []
-for x in tafs:
-    if x["fcst_from"] == []:
-        forecast = {
-            "icao": x["icao"],
-            "wnd_dir": None,
-            "wnd_speed": None,
-            "wnd_gust": None,
-            "visibility": None,
-            "wx": None,
-            "sky_con": None,
-        }
-        forecasts.append(forecast)
-    else:
-        forecasts.append(process_taf(x))
+    forecasts = []
+    for x in tafs:
+        if x["fcst_from"] == []:
+            forecast = {
+                "icao": x["icao"],
+                "wnd_dir": None,
+                "wnd_speed": None,
+                "wnd_gust": None,
+                "visibility": None,
+                "wx": None,
+                "sky_con": None,
+            }
+            forecasts.append(forecast)
+        else:
+            forecasts.append(process_taf(x, valid_from, valid_to))
 
-print(forecasts)
+    return forecasts
