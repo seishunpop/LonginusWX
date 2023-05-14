@@ -120,14 +120,30 @@ def process_taf(taf, valid_from, valid_to):
     if df.wnd_gust.any():
         idx = df["wnd_gust"].astype("int8").idxmax()
         winds = df.iloc[idx]
-        forecast["wnd_dir"] = winds.wnd_dir
-        forecast["wnd_speed"] = winds.wnd_speed
+        if winds.wnd_dir == "0":
+            forecast["wnd_dir"] = "VRB"
+        elif int(winds.wnd_dir) < 100:
+            forecast["wnd_dir"] = "0" + winds.wnd_dir
+        else:
+            forecast["wnd_dir"] = winds.wnd_dir
+        if int(winds.wnd_speed) < 10:
+            forecast["wnd_speed"] = "0" + winds.wnd_speed
+        else:
+            forecast["wnd_speed"] = winds.wnd_speed
         forecast["wnd_gust"] = winds.wnd_gust
     else:
         idx = df["wnd_speed"].astype("int8").idxmax()
         winds = df.iloc[idx]
-        forecast["wnd_dir"] = winds.wnd_dir
-        forecast["wnd_speed"] = winds.wnd_speed
+        if winds.wnd_dir == "0":
+            forecast["wnd_dir"] = "VRB"
+        elif int(winds.wnd_dir) < 100:
+            forecast["wnd_dir"] = "0" + winds.wnd_dir
+        else:
+            forecast["wnd_dir"] = winds.wnd_dir
+        if int(winds.wnd_speed) < 10:
+            forecast["wnd_speed"] = "0" + winds.wnd_speed
+        else:
+            forecast["wnd_speed"] = winds.wnd_speed
 
     # Calculates the lowest visiblity in statute miles
     # Still working on implementing internal AWC mappings
@@ -258,10 +274,10 @@ def process_taf(taf, valid_from, valid_to):
 
 
 # Development settings for Pandas
-pd.set_option("display.max_rows", 500)
-pd.set_option("display.max_columns", 500)
-pd.set_option("display.width", 1000)
-pd.set_option("display.max_colwidth", None)
+# pd.set_option("display.max_rows", 500)
+# pd.set_option("display.max_columns", 500)
+# pd.set_option("display.width", 1000)
+# pd.set_option("display.max_colwidth", None)
 
 
 # TAF data is requested from the Aviation Weather Center API
@@ -271,7 +287,7 @@ def taf_reducer(stations, valid_from, valid_to):
     # Example argument format
     # stations = ["KNKT", "KSMF"]
     # valid_from = "2023-05-14T10:00:00"
-    # valid_to = "2023-05-15T009:00:00"
+    # valid_to = "2023-05-15T09:00:00"
 
     r = requests.get(query_string + ",".join(stations)).text
 
@@ -295,4 +311,31 @@ def taf_reducer(stations, valid_from, valid_to):
         else:
             forecasts.append(process_taf(x, valid_from, valid_to))
 
-    return forecasts
+    # Formats the worst conditions as strings
+    fcst_strings = []
+    for x in forecasts:
+        if x["wnd_gust"] == None:
+            fcst_string = (
+                "{icao} {wnd_dir}{wnd_speed}KT {visibility}SM {wx} {sky_con}".format(
+                    icao=x["icao"],
+                    wnd_dir=x["wnd_dir"],
+                    wnd_speed=x["wnd_speed"],
+                    visibility=x["visibility"],
+                    wx=x["wx"],
+                    sky_con=x["sky_con"],
+                )
+            )
+            fcst_strings.append(fcst_string)
+        else:
+            fcst_string = "{icao} {wnd_dir}{wnd_speed}G{wnd_gust}KT {visibility}SM {wx} {sky_con}".format(
+                icao=x["icao"],
+                wnd_dir=x["wnd_dir"],
+                wnd_speed=x["wnd_speed"],
+                wnd_gust=x["wnd_gust"],
+                visibility=x["visibility"],
+                wx=x["wx"],
+                sky_con=x["sky_con"],
+            )
+            fcst_strings.append(fcst_string)
+
+    return fcst_strings
