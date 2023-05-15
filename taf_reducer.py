@@ -288,8 +288,10 @@ def taf_reducer(stations, valid_from, valid_to):
     # stations = ["KNKT", "KSMF"]
     # valid_from = "2023-05-14T10:00:00"
     # valid_to = "2023-05-15T09:00:00"
-
-    r = requests.get(query_string + ",".join(stations)).text
+    try:
+        r = requests.get(query_string + ",".join(stations)).text
+    except:
+        return "AWC request failed"
 
     tafs = []
     for x in stations:
