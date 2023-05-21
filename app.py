@@ -1,5 +1,6 @@
 from flask import Flask
 from flask import request
+from flask import render_template
 import datetime
 from datetime import timedelta
 from taf_reducer import taf_reducer
@@ -7,10 +8,16 @@ from taf_reducer import taf_reducer
 app = Flask(__name__)
 
 
-# This route returns a string containing the worst conditions from all TAF lines within the valid period
-# Example query string format: ?stations=knkt,ksmf&valid-from=2023-05-14T10:00:00&valid-to=2023-05-15T009:00:00
+# This route serves an html template for the homepage located in /templates
 @app.route("/")
 def index():
+    return render_template("index.html")
+
+
+# This route returns a string containing the worst conditions from all TAF lines within the valid period
+# Example query string format: ?stations=knkt,ksmf&valid-from=2023-05-14T10:00:00&valid-to=2023-05-15T09:00:00
+@app.route("/taf/")
+def taf():
     # The AWC TDS(Text Data Server) api requires station identifiers be uppercase
     try:
         stations = request.args.get("stations").upper().split(",")
