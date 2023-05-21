@@ -1,11 +1,19 @@
 from flask import Flask
 from flask import request
 from flask import render_template
+from flask import send_from_directory
+from flask import make_response
 import datetime
 from datetime import timedelta
 from taf_reducer import taf_reducer
 
 app = Flask(__name__)
+
+
+# This route serves the robots.txt file
+@app.route("/robots.txt")
+def robots():
+    return send_from_directory("static", "robots.txt")
 
 
 # This route serves an html template for the homepage located in /templates
@@ -39,6 +47,10 @@ def taf():
     # Calls the taf_reducer function and returns an error message if it fails
     # Missing TAFs will only return the icao
     try:
-        return taf_reducer(stations, valid_from, valid_to)
+        res = taf_reducer(stations, valid_from, valid_to)
+        res = make_response(res, [("X-Robots-Tag", "noindex")])
+        return res
     except:
-        return "Please enter a valid timeframe<br>Example format: https://longinuswx.com/?stations=knkt,ksmf&valid-from=2023-05-14T10:00:00&valid-to=2023-05-15T009:00:00"
+        res = "Please enter a valid timeframe<br>Example format: https://longinuswx.com/?stations=knkt,ksmf&valid-from=2023-05-14T10:00:00&valid-to=2023-05-15T009:00:00"
+        res = make_response(res, [("X-Robots-Tag", "noindex")])
+        return res
