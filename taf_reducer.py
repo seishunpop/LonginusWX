@@ -118,8 +118,10 @@ def process_taf(taf, valid_from, valid_to):
     # Determines the worst wind conditions by highest wind speed
     # One caveat is that this assumes the highest wind speed will be a gust
     if df.wnd_gust.any():
-        idx = df["wnd_gust"].astype("int8").idxmax()
-        winds = df.iloc[idx]
+        df_wnd = df
+        df_wnd.reset_index(drop=True, inplace=True)
+        idx = df_wnd["wnd_gust"].astype("int8").idxmax()
+        winds = df_wnd.iloc[idx]
         if winds.wnd_dir == "0":
             forecast["wnd_dir"] = "VRB"
         elif int(winds.wnd_dir) < 100:
@@ -132,9 +134,13 @@ def process_taf(taf, valid_from, valid_to):
             forecast["wnd_speed"] = winds.wnd_speed
         forecast["wnd_gust"] = winds.wnd_gust
     else:
-        idx = df["wnd_speed"].astype("int8").idxmax()
-        winds = df.iloc[idx]
-        if winds.wnd_dir == "0":
+        df_wnd = df
+        df_wnd.reset_index(drop=True, inplace=True)
+        idx = df_wnd["wnd_speed"].astype("int8").idxmax()
+        winds = df_wnd.iloc[idx]
+        if winds.wnd_dir == "0" and int(winds.wnd_speed) == 0:
+            forecast["wnd_dir"] = "000"
+        elif winds.wnd_dir == "0":
             forecast["wnd_dir"] = "VRB"
         elif int(winds.wnd_dir) < 100:
             forecast["wnd_dir"] = "0" + winds.wnd_dir
@@ -285,9 +291,9 @@ def process_taf(taf, valid_from, valid_to):
 def taf_reducer(stations, valid_from, valid_to):
     query_string = "https://www.aviationweather.gov/adds/dataserver_current/httpparam?datasource=tafs&requestType=retrieve&format=xml&mostRecentForEachStation=true&hoursBeforeNow=2&stationString="
     # Example argument format
-    # stations = ["KNKT", "KSMF"]
-    # valid_from = "2023-05-14T10:00:00"
-    # valid_to = "2023-05-15T09:00:00"
+    # stations = ["KBTL"]
+    # valid_from = "2023-05-22T09:00:00"
+    # valid_to = "2023-05-22T10:00:00"
     try:
         r = requests.get(query_string + ",".join(stations)).text
     except:
